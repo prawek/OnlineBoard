@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Онлайн-доска (Клон Miro)</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #f4f4f9; font-family: sans-serif; }
+        canvas { background-color: #ffffff; cursor: crosshair; display: block; }
+
+        #toolbar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        button {
+            padding: 8px 12px;
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #ff6b81; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+
+    <div id="toolbar">
+        <div>
+            <label for="colorPicker">Цвет:</label>
+            <input type="color" id="colorPicker" value="#2f3542">
+        </div>
+        <div>
+            <label for="lineWidth">Толщина:</label>
+            <input type="range" id="lineWidth" min="1" max="20" value="3">
+        </div>
+        <button id="clearBtn">Очистить доску</button>
+    </div>
+
+    <canvas id="whiteboard"></canvas>
+
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('whiteboard');
+        const context = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const lineWidth = document.getElementById('lineWidth');
+        const clearBtn = document.getElementById('clearBtn');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let drawing = false;
+        let current = { x: 0, y: 0 };
+
+        function drawLine(x0, y0, x1, y1, color, width, emit) {
+            context.beginPath();
+            context.moveTo(x0, y0);
+            context.lineTo(x1, y1);
+            context.strokeStyle = color;
+            context.lineWidth = width;
+            context.lineCap = 'round';
+            context.stroke();
+            context.closePath();
+
+            if (!emit) return;
+
+            socket.emit('draw_line', {
+                x0: x0 / canvas.width,
+                y0: y0 / canvas.height,
+                x1: x1 / canvas.width,
+                y1: y1 / canvas.height,
+                color: color,
+                width: width
+            });
+        }
+
+        const onMouseDown = (e) => {
+            drawing = true;
+            current.x = e.clientX || e.touches[0].clientX;
+            current.y = e.clientY || e.touches[0].clientY;
+        };
+
+        const onMouseUp = (e) => {
+            if (!drawing) return;
+            drawing = false;
+            drawLine(current.x, current.y, e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY, colorPicker.value, lineWidth.value, true);
+        };
+
+        const onMouseMove = (e) => {
+            if (!drawing) return;
+            drawLine(current.x, current.y, e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY, colorPicker.value, lineWidth.value, true);
+            current.x = e.clientX || e.touches[0].clientX;
+            current.y = e.clientY || e.touches[0].clientY;
+        };
+
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mouseup', onMouseUp);
+        canvas.addEventListener('mouseout', onMouseUp);
+        canvas.addEventListener('mousemove', onMouseMove);
+
+        canvas.addEventListener('touchstart', onMouseDown);
+        canvas.addEventListener('touchend', onMouseUp);
+        canvas.addEventListener('touchcancel', onMouseUp);
+        canvas.addEventListener('touchmove', onMouseMove);
+
+        socket.on('draw_line', (data) => {
+            const w = canvas.width;
+            const h = canvas.height;
+            drawLine(data.x0 * w, data.y0 * h, data.x1 * w, data.y1 * h, data.color, data.width, false);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            socket.emit('clear_canvas');
+        });
+
+        socket.on('clear_canvas', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        window.addEventListener('resize', () => {
+            const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            context.putImageData(imgData, 0, 0);
+        });
+    </script>
+</body>
+</html>
