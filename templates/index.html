@@ -3,241 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Онлайн-доска</title>
+    <title>Интерактивная доска</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
         :root {
             --bg-color: #ffffff;
-            --text-color: #2f3542;
-            --grid-color: rgba(0, 0, 0, 0.1);
-            --panel-bg: #ffffff;
-            --panel-shadow: rgba(0, 0, 0, 0.1);
+            --grid-color: rgba(0, 0, 0, 0.15);
+            --text-color: #333333;
+            --panel-bg: #f8f9fa;
+            --btn-bg: #e9ecef;
+            --btn-text: #333;
+            --btn-active: #0d6efd;
+            --btn-active-text: #fff;
         }
 
         [data-theme="dark"] {
-            --bg-color: #1e272e;
-            --text-color: #d2dae2;
-            --grid-color: rgba(255, 255, 255, 0.1);
-            --panel-bg: #2f3542;
-            --panel-shadow: rgba(0, 0, 0, 0.5);
+            --bg-color: #1e1e1e;
+            --grid-color: rgba(255, 255, 255, 0.15);
+            --text-color: #ffffff;
+            --panel-bg: #2d2d2d;
+            --btn-bg: #3d3d3d;
+            --btn-text: #fff;
+            --btn-active: #3d8bfd;
+            --btn-active-text: #fff;
         }
 
         body {
             margin: 0;
-            padding: 0;
             overflow: hidden;
             background-color: var(--bg-color);
             color: var(--text-color);
+            transition: background-color 0.3s ease;
             font-family: sans-serif;
-            transition: background-color 0.3s;
         }
 
-        canvas {
-            cursor: crosshair;
-            display: block;
-            background-color: transparent;
+        .toolbar {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--panel-bg);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            align-items: center;
         }
 
-        .grid-enabled {
+        .divider {
+            width: 1px;
+            height: 24px;
+            background-color: var(--grid-color);
+            margin: 0 5px;
+        }
+
+        button, label.custom-file-upload {
+            cursor: pointer;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: inline-block;
+        }
+
+        button:hover, label.custom-file-upload:hover {
+            filter: brightness(0.9);
+        }
+
+        button.active {
+            background-color: var(--btn-active);
+            color: var(--btn-active-text);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        #board-container {
+            width: 100vw;
+            height: 100vh;
+            background-size: 20px 20px;
+        }
+
+        #board-container.show-grid {
             background-image:
                 linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
                 linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-            background-size: 30px 30px;
         }
-
-        #toolbar {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: var(--panel-bg);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px var(--panel-shadow);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            transition: background-color 0.3s;
-        }
-
-        .tool-group { display: flex; flex-direction: column; font-size: 12px; gap: 4px; }
-
-        button, label.btn-upload {
-            padding: 8px 12px;
-            background-color: #ff4757;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            text-align: center;
-            font-size: 13px;
-        }
-        button:hover, label.btn-upload:hover { background-color: #ff6b81; }
-
-        select { padding: 4px; border-radius: 4px; }
-        input[type="file"] { display: none; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
 
-    <div id="toolbar">
-        <div class="tool-group">
-            <label>Тема:</label>
-            <select id="themeSelect">
-                <option value="light">Светлая</option>
-                <option value="dark">Темная</option>
-            </select>
-        </div>
+    <div class="toolbar">
+        <button id="modeDraw" class="active" title="Рисовать">🖌️</button>
+        <button id="modeSelect" title="Выделение и перемещение">👆</button>
+        <button id="modeErase" title="Удалить по клику">🗑️ Ластик</button>
 
-        <div class="tool-group">
-            <label>Фон:</label>
-            <select id="gridSelect">
-                <option value="none">Обычный</option>
-                <option value="grid">В клетку</option>
-            </select>
-        </div>
+        <div class="divider"></div>
 
-        <div class="tool-group">
-            <label>Цвет:</label>
-            <input type="color" id="colorPicker" value="#2f3542">
-        </div>
+        <button id="btnUndo" title="Отменить (Ctrl+Z)">↩️</button>
+        <button id="btnRedo" title="Повторить (Ctrl+Y)">↪️</button>
 
-        <div class="tool-group">
-            <label>Толщина:</label>
-            <input type="range" id="lineWidth" min="1" max="20" value="3">
-        </div>
+        <div class="divider"></div>
 
-        <label class="btn-upload">
-            Вставить картинку
+        <label class="custom-file-upload" title="Или нажмите Ctrl+V">
             <input type="file" id="imageUpload" accept="image/*">
+            🖼️ Картинка
         </label>
 
-        <button id="clearBtn">Очистить</button>
+        <div class="divider"></div>
+
+        <button id="themeToggle">🌓 Тема</button>
+        <button id="gridToggle">▦ Сетка</button>
     </div>
 
-    <canvas id="whiteboard"></canvas>
+    <div id="board-container" class="show-grid">
+        <canvas id="board"></canvas>
+    </div>
 
     <script>
-        const socket = io();
-        const canvas = document.getElementById('whiteboard');
-        const context = canvas.getContext('2d');
-
-        const colorPicker = document.getElementById('colorPicker');
-        const lineWidth = document.getElementById('lineWidth');
-        const clearBtn = document.getElementById('clearBtn');
-        const themeSelect = document.getElementById('themeSelect');
-        const gridSelect = document.getElementById('gridSelect');
-        const imageUpload = document.getElementById('imageUpload');
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        let drawing = false;
-        let current = { x: 0, y: 0 };
-
-        themeSelect.addEventListener('change', (e) => {
-            const theme = e.target.value;
-            document.documentElement.setAttribute('data-theme', theme);
-            if (theme === 'dark' && colorPicker.value === '#2f3542') {
-                colorPicker.value = '#ffffff';
-            } else if (theme === 'light' && colorPicker.value === '#ffffff') {
-                colorPicker.value = '#2f3542';
-            }
+        const canvas = new fabric.Canvas('board', {
+            isDrawingMode: true,
+            selection: false
         });
 
-        gridSelect.addEventListener('change', (e) => {
-            if (e.target.value === 'grid') {
-                canvas.classList.add('grid-enabled');
-            } else {
-                canvas.classList.remove('grid-enabled');
+        canvas.freeDrawingBrush.width = 3;
+
+        let history = [];
+        let historyStep = -1;
+        let isRestoringHistory = false;
+
+        function resizeCanvas() {
+            canvas.setWidth(window.innerWidth);
+            canvas.setHeight(window.innerHeight);
+            canvas.renderAll();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function saveHistory() {
+            if (isRestoringHistory) return;
+            history = history.slice(0, historyStep + 1);
+            history.push(JSON.stringify(canvas));
+            historyStep++;
+        }
+
+        saveHistory();
+
+        canvas.on('object:added', saveHistory);
+        canvas.on('object:modified', saveHistory);
+        canvas.on('object:removed', saveHistory);
+
+        function undo() {
+            if (historyStep > 0) {
+                historyStep--;
+                restoreHistory();
             }
-        });
+        }
 
-        function drawLine(x0, y0, x1, y1, color, width, emit) {
-            context.beginPath();
-            context.moveTo(x0, y0);
-            context.lineTo(x1, y1);
-            context.strokeStyle = color;
-            context.lineWidth = width;
-            context.lineCap = 'round';
-            context.stroke();
-            context.closePath();
+        function redo() {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                restoreHistory();
+            }
+        }
 
-            if (!emit) return;
-
-            socket.emit('draw_line', {
-                x0: x0 / canvas.width,
-                y0: y0 / canvas.height,
-                x1: x1 / canvas.width,
-                y1: y1 / canvas.height,
-                color: color,
-                width: width
+        function restoreHistory() {
+            isRestoringHistory = true;
+            canvas.loadFromJSON(history[historyStep], () => {
+                canvas.renderAll();
+                isRestoringHistory = false;
+                updateBrushColor();
             });
         }
 
-        const onMouseDown = (e) => { drawing = true; current.x = e.clientX; current.y = e.clientY; };
-        const onMouseUp = (e) => { if (!drawing) return; drawing = false; drawLine(current.x, current.y, e.clientX, e.clientY, colorPicker.value, lineWidth.value, true); };
-        const onMouseMove = (e) => { if (!drawing) return; drawLine(current.x, current.y, e.clientX, e.clientY, colorPicker.value, lineWidth.value, true); current.x = e.clientX; current.y = e.clientY; };
+        document.getElementById('btnUndo').addEventListener('click', undo);
+        document.getElementById('btnRedo').addEventListener('click', redo);
 
-        canvas.addEventListener('mousedown', onMouseDown);
-        canvas.addEventListener('mouseup', onMouseUp);
-        canvas.addEventListener('mouseout', onMouseUp);
-        canvas.addEventListener('mousemove', onMouseMove);
 
-        imageUpload.addEventListener('change', (e) => {
+        const modes = { DRAW: 'draw', SELECT: 'select', ERASE: 'erase' };
+        let currentMode = modes.DRAW;
+
+        const btnDraw = document.getElementById('modeDraw');
+        const btnSelect = document.getElementById('modeSelect');
+        const btnErase = document.getElementById('modeErase');
+
+        function setMode(mode) {
+            currentMode = mode;
+            btnDraw.classList.toggle('active', mode === modes.DRAW);
+            btnSelect.classList.toggle('active', mode === modes.SELECT);
+            btnErase.classList.toggle('active', mode === modes.ERASE);
+
+            if (mode === modes.DRAW) {
+                canvas.isDrawingMode = true;
+                canvas.selection = false;
+                canvas.forEachObject(o => o.selectable = false);
+            } else if (mode === modes.SELECT) {
+                canvas.isDrawingMode = false;
+                canvas.selection = true;
+                canvas.forEachObject(o => o.selectable = true);
+            } else if (mode === modes.ERASE) {
+                canvas.isDrawingMode = false;
+                canvas.selection = false;
+                canvas.forEachObject(o => o.selectable = false);
+            }
+        }
+
+        btnDraw.addEventListener('click', () => setMode(modes.DRAW));
+        btnSelect.addEventListener('click', () => setMode(modes.SELECT));
+        btnErase.addEventListener('click', () => setMode(modes.ERASE));
+
+        canvas.on('mouse:down', (e) => {
+            if (currentMode === modes.ERASE && e.target) {
+                canvas.remove(e.target);
+                canvas.discardActiveObject();
+            }
+        });
+
+
+        function addImageToCanvas(imgUrl) {
+            fabric.Image.fromURL(imgUrl, (img) => {
+                if (img.width > window.innerWidth / 2) {
+                    img.scaleToWidth(window.innerWidth / 2);
+                }
+
+                img.set({
+                    left: (window.innerWidth - img.getScaledWidth()) / 2,
+                    top: (window.innerHeight - img.getScaledHeight()) / 2,
+                    cornerColor: '#007bff',
+                    cornerStrokeColor: '#007bff',
+                    borderColor: '#007bff',
+                    transparentCorners: false
+                });
+
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                setMode(modes.SELECT);
+            });
+        }
+
+        document.getElementById('imageUpload').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(event) {
-                const imgBase64 = event.target.result;
-                const img = new Image();
-                img.onload = function() {
-                    // Размещаем картинку по центру экрана для простоты
-                    const x = (canvas.width / 2) - (img.width / 2);
-                    const y = (canvas.height / 2) - (img.height / 2);
-                    context.drawImage(img, x, y);
-
-                    socket.emit('draw_image', {
-                        image: imgBase64,
-                        x: x / canvas.width,
-                        y: y / canvas.height,
-                        width: img.width / canvas.width,
-                        height: img.height / canvas.height
-                    });
-                }
-                img.src = imgBase64;
-            };
+            reader.onload = (event) => addImageToCanvas(event.target.result);
             reader.readAsDataURL(file);
-            e.target.value = '';
         });
 
-        socket.on('draw_line', (data) => {
-            drawLine(data.x0 * canvas.width, data.y0 * canvas.height, data.x1 * canvas.width, data.y1 * canvas.height, data.color, data.width, false);
-        });
 
-        socket.on('draw_image', (data) => {
-            const img = new Image();
-            img.onload = function() {
-                context.drawImage(img, data.x * canvas.width, data.y * canvas.height, data.width * canvas.width, data.height * canvas.height);
+        window.addEventListener('keydown', (e) => {
+            // Ctrl+Z - Отмена
+            if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undo();
             }
-            img.src = data.image;
+            // Ctrl+Y - Повтор
+            if (e.ctrlKey && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                redo();
+            }
+            // Delete / Backspace - Удалить выделенное
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                const activeObjects = canvas.getActiveObjects();
+                if (activeObjects.length) {
+                    canvas.discardActiveObject();
+                    activeObjects.forEach((obj) => canvas.remove(obj));
+                }
+            }
         });
 
-        clearBtn.addEventListener('click', () => {
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            socket.emit('clear_canvas');
+        // Ctrl+V - Вставка из буфера обмена
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || window.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => addImageToCanvas(event.target.result);
+                    reader.readAsDataURL(blob);
+                }
+            }
         });
 
-        socket.on('clear_canvas', () => {
-            context.clearRect(0, 0, canvas.width, canvas.height);
+
+        function updateBrushColor() {
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            canvas.freeDrawingBrush.color = isDark ? '#ffffff' : '#000000';
+        }
+        updateBrushColor();
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.body.removeAttribute('data-theme');
+            } else {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+            updateBrushColor();
         });
 
-        window.addEventListener('resize', () => {
-            const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            context.putImageData(imgData, 0, 0);
+        document.getElementById('gridToggle').addEventListener('click', () => {
+            document.getElementById('board-container').classList.toggle('show-grid');
         });
     </script>
 </body>
