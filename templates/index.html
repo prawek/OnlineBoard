@@ -3,301 +3,445 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Онлайн-доска с палитрой Miro</title>
+    <title>Интерактивная доска</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
         :root {
             --bg-color: #ffffff;
-            --text-color: #2f3542;
-            --grid-color: rgba(0, 0, 0, 0.1);
-            --panel-bg: #ffffff;
-            --panel-shadow: rgba(0, 0, 0, 0.1);
+            --grid-color: rgba(0, 0, 0, 0.15);
+            --text-color: #333333;
+            --panel-bg: #f8f9fa;
+            --btn-bg: #e9ecef;
+            --btn-text: #333;
+            --btn-active: #0d6efd;
+            --btn-active-text: #fff;
         }
+
         [data-theme="dark"] {
-            --bg-color: #1e272e;
-            --text-color: #d2dae2;
-            --grid-color: rgba(255, 255, 255, 0.1);
-            --panel-bg: #2f3542;
-            --panel-shadow: rgba(0, 0, 0, 0.5);
+            --bg-color: #1e1e1e;
+            --grid-color: rgba(255, 255, 255, 0.15);
+            --text-color: #ffffff;
+            --panel-bg: #2d2d2d;
+            --btn-bg: #3d3d3d;
+            --btn-text: #fff;
+            --btn-active: #3d8bfd;
+            --btn-active-text: #fff;
         }
 
-        body { margin: 0; overflow: hidden; background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; }
-        canvas { display: block; cursor: crosshair; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease;
+            font-family: sans-serif;
+        }
 
-        #bg-grid {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1;
+        .toolbar {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--panel-bg);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            align-items: center;
+        }
+
+        .divider {
+            width: 1px;
+            height: 24px;
+            background-color: var(--grid-color);
+            margin: 0 5px;
+        }
+
+        button, label.custom-file-upload {
+            cursor: pointer;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: inline-block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover, label.custom-file-upload:hover {
+            filter: brightness(0.9);
+        }
+
+        button.active {
+            background-color: var(--btn-active);
+            color: var(--btn-active-text);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Стилизация выбора цвета */
+        input[type="color"] {
+            cursor: pointer;
+            height: 34px;
+            width: 34px;
+            padding: 0;
+            border: none;
+            border-radius: 6px;
+            background: none;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch {
+            border: 2px solid var(--grid-color);
+            border-radius: 6px;
+        }
+
+        /* Динамическая сетка */
+        #board-container {
+            width: 100vw;
+            height: 100vh;
+            --grid-size: 20px;
+            --grid-offset-x: 0px;
+            --grid-offset-y: 0px;
+            background-size: var(--grid-size) var(--grid-size);
+            background-position: var(--grid-offset-x) var(--grid-offset-y);
+        }
+
+        #board-container.show-grid {
             background-image:
                 linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
                 linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-            background-size: 30px 30px; display: none;
         }
-        .grid-enabled #bg-grid { display: block; }
-
-        #toolbar {
-            position: absolute; top: 20px; left: 20px; background: var(--panel-bg);
-            padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px var(--panel-shadow);
-            display: flex; gap: 20px; align-items: center; z-index: 10;
-        }
-
-        .tool-group { display: flex; flex-direction: column; font-size: 12px; gap: 6px; }
-
-        .color-palette { display: flex; gap: 6px; align-items: center; }
-
-        .color-swatch {
-            width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
-            border: 2px solid transparent; transition: transform 0.1s, border-color 0.1s;
-        }
-        .color-swatch:hover { transform: scale(1.15); }
-        .color-swatch.active { border-color: #ff4757; transform: scale(1.1); }
-
-        .color-picker-wrapper {
-            position: relative; width: 24px; height: 24px; border-radius: 50%;
-            overflow: hidden; border: 2px solid #ccc; cursor: pointer;
-        }
-        .color-picker-wrapper input[type="color"] {
-            position: absolute; top: -5px; left: -5px; width: 34px; height: 34px; border: none; cursor: pointer;
-        }
-
-        button, label.btn-upload, select {
-            padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
-        }
-        .btn-action { background-color: #ff4757; color: white; }
-        .btn-action:hover { background-color: #ff6b81; }
-        input[type="file"] { display: none; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
-<body class="grid-enabled">
+<body>
 
-    <div id="bg-grid"></div>
+    <div class="toolbar">
+        <button id="modeSelect" title="Выделение и перемещение">👆</button>
+        <button id="modeDraw" class="active" title="Рисовать">🖊️</button>
+        <button id="modeText" title="Текст">📝</button>
+        <button id="modeErase" title="Ластик">🗑️</button>
 
-    <div id="toolbar">
-        <div class="tool-group">
-            <label>Инструмент:</label>
-            <select id="toolSelect">
-                <option value="brush">Кисть</option>
-                <option value="text">Текст</option>
-            </select>
-        </div>
+        <div class="divider"></div>
 
-        <div class="tool-group">
-            <label>Цвет:</label>
-            <div class="color-palette">
-                <div class="color-swatch active" style="background-color: #2f3542;" data-color="#2f3542"></div>
-                <div class="color-swatch" style="background-color: #ff4757;" data-color="#ff4757"></div>
-                <div class="color-swatch" style="background-color: #1e90ff;" data-color="#1e90ff"></div>
-                <div class="color-swatch" style="background-color: #2ed573;" data-color="#2ed573"></div>
-                <div class="color-swatch" style="background-color: #ffa502;" data-color="#ffa502"></div>
-                <div class="color-picker-wrapper" title="Свой цвет">
-                    <input type="color" id="customColorPicker" value="#70a1ff">
-                </div>
-            </div>
-        </div>
+        <input type="color" id="colorPicker" value="#000000" title="Выбрать цвет">
 
-        <div class="tool-group">
-            <label>Толщина / Размер:</label>
-            <input type="range" id="sizeSlider" min="1" max="50" value="3">
-        </div>
+        <div class="divider"></div>
 
-        <label class="btn-action btn-upload">
-            Картинка
+        <button id="btnUndo" title="Отменить (Ctrl+Z)">↩️</button>
+        <button id="btnRedo" title="Повторить (Ctrl+Y)">↪️</button>
+
+        <div class="divider"></div>
+
+        <label class="custom-file-upload" title="Или нажмите Ctrl+V">
             <input type="file" id="imageUpload" accept="image/*">
+            🖼️ Картинка
         </label>
-        <button id="clearBtn" class="btn-action">Очистить</button>
+
+        <div class="divider"></div>
+
+        <button id="themeToggle">🌓 Тема</button>
+        <button id="gridToggle">▦ Сетка</button>
     </div>
 
-    <canvas id="whiteboard" oncontextmenu="return false;"></canvas>
+    <div id="board-container" class="show-grid">
+        <canvas id="board"></canvas>
+    </div>
 
     <script>
-        const socket = io();
-        const canvas = document.getElementById('whiteboard');
-        const context = canvas.getContext('2d');
-        const bgGrid = document.getElementById('bg-grid');
-
-        const toolSelect = document.getElementById('toolSelect');
-        const sizeSlider = document.getElementById('sizeSlider');
-        const imageUpload = document.getElementById('imageUpload');
-        const clearBtn = document.getElementById('clearBtn');
-        const customColorPicker = document.getElementById('customColorPicker');
-        const swatches = document.querySelectorAll('.color-swatch');
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        let currentColor = '#2f3542';
-
-        let elements = [];
-        let scale = 1;
-        let offsetX = 0;
-        let offsetY = 0;
-        let isDrawing = false;
-        let currentLine = null;
-        let isPanning = false;
-        let startPanX = 0;
-        let startPanY = 0;
-        const imageCache = {};
-
-        swatches.forEach(swatch => {
-            swatch.addEventListener('click', (e) => {
-                document.querySelector('.color-swatch.active')?.classList.remove('active');
-                e.target.classList.add('active');
-
-                currentColor = e.target.getAttribute('data-color');
-            });
+        const canvas = new fabric.Canvas('board', {
+            isDrawingMode: true,
+            selection: false
         });
 
-        customColorPicker.addEventListener('input', (e) => {
-            document.querySelector('.color-swatch.active')?.classList.remove('active');
-            currentColor = e.target.value;
-        });
+        canvas.freeDrawingBrush.width = 3;
 
+        let history = [];
+        let historyStep = -1;
+        let isRestoringHistory = false;
 
-        function redraw() {
-            context.setTransform(1, 0, 0, 1, 0, 0);
-            context.clearRect(0, 0, canvas.width, canvas.height);
+        function resizeCanvas() {
+            canvas.setWidth(window.innerWidth);
+            canvas.setHeight(window.innerHeight);
+            canvas.renderAll();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-            bgGrid.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-            bgGrid.style.transformOrigin = "0 0";
+        function saveHistory() {
+            if (isRestoringHistory) return;
+            history = history.slice(0, historyStep + 1);
+            history.push(JSON.stringify(canvas));
+            historyStep++;
+        }
 
-            context.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+        saveHistory();
 
-            elements.forEach(el => {
-                if (el.type === 'line') {
-                    context.beginPath();
-                    context.moveTo(el.points[0].x, el.points[0].y);
-                    for (let i = 1; i < el.points.length; i++) {
-                        context.lineTo(el.points[i].x, el.points[i].y);
-                    }
-                    context.strokeStyle = el.color;
-                    context.lineWidth = el.width;
-                    context.lineCap = 'round';
-                    context.lineJoin = 'round';
-                    context.stroke();
-                }
-                else if (el.type === 'text') {
-                    context.font = `${el.size}px sans-serif`;
-                    context.fillStyle = el.color;
-                    context.fillText(el.text, el.x, el.y);
-                }
-                else if (el.type === 'image') {
-                    if (imageCache[el.id]) {
-                        context.drawImage(imageCache[el.id], el.x, el.y, el.width, el.height);
-                    } else {
-                        const img = new Image();
-                        img.onload = () => { imageCache[el.id] = img; redraw(); };
-                        img.src = el.src;
-                    }
-                }
+        canvas.on('object:added', saveHistory);
+        canvas.on('object:modified', saveHistory);
+        canvas.on('object:removed', saveHistory);
+
+        function undo() {
+            if (historyStep > 0) {
+                historyStep--;
+                restoreHistory();
+            }
+        }
+
+        function redo() {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                restoreHistory();
+            }
+        }
+
+        function restoreHistory() {
+            isRestoringHistory = true;
+            canvas.loadFromJSON(history[historyStep], () => {
+                canvas.renderAll();
+                isRestoringHistory = false;
+                updateBrushColor();
             });
         }
 
-        function getWorldCoords(e) {
-            return { x: (e.clientX - offsetX) / scale, y: (e.clientY - offsetY) / scale };
+        document.getElementById('btnUndo').addEventListener('click', undo);
+        document.getElementById('btnRedo').addEventListener('click', redo);
+
+
+        const modes = { DRAW: 'draw', SELECT: 'select', ERASE: 'erase', TEXT: 'text' };
+        let currentMode = modes.DRAW;
+
+        const btnDraw = document.getElementById('modeDraw');
+        const btnSelect = document.getElementById('modeSelect');
+        const btnErase = document.getElementById('modeErase');
+        const btnText = document.getElementById('modeText');
+
+        function setMode(mode) {
+            currentMode = mode;
+            btnDraw.classList.toggle('active', mode === modes.DRAW);
+            btnSelect.classList.toggle('active', mode === modes.SELECT);
+            btnErase.classList.toggle('active', mode === modes.ERASE);
+            btnText.classList.toggle('active', mode === modes.TEXT);
+
+            if (mode === modes.DRAW) {
+                canvas.isDrawingMode = true;
+                canvas.selection = false;
+                canvas.forEachObject(o => o.selectable = false);
+            } else if (mode === modes.SELECT) {
+                canvas.isDrawingMode = false;
+                canvas.selection = true;
+                canvas.forEachObject(o => o.selectable = true);
+            } else if (mode === modes.ERASE) {
+                canvas.isDrawingMode = false;
+                canvas.selection = false;
+                canvas.forEachObject(o => o.selectable = false);
+            } else if (mode === modes.TEXT) {
+                canvas.isDrawingMode = false;
+                canvas.selection = false;
+                canvas.forEachObject(o => o.selectable = false);
+            }
         }
 
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 2) {
-                isPanning = true;
-                startPanX = e.clientX - offsetX;
-                startPanY = e.clientY - offsetY;
-                canvas.style.cursor = 'grab';
-                return;
+        btnDraw.addEventListener('click', () => setMode(modes.DRAW));
+        btnSelect.addEventListener('click', () => setMode(modes.SELECT));
+        btnErase.addEventListener('click', () => setMode(modes.ERASE));
+        btnText.addEventListener('click', () => setMode(modes.TEXT));
+
+        canvas.on('mouse:down', (e) => {
+            if (currentMode === modes.ERASE && e.target) {
+                canvas.remove(e.target);
+                canvas.discardActiveObject();
             }
+            else if (currentMode === modes.TEXT) {
+                const pointer = canvas.getPointer(e.e);
+                const text = new fabric.IText('Текст', {
+                    left: pointer.x,
+                    top: pointer.y,
+                    fontFamily: 'sans-serif',
+                    fill: document.getElementById('colorPicker').value,
+                    fontSize: 24,
+                    transparentCorners: false,
+                    cornerColor: '#007bff',
+                    borderColor: '#007bff',
+                });
+                canvas.add(text);
+                canvas.setActiveObject(text);
+                text.enterEditing();
+                text.selectAll();
+                setMode(modes.SELECT);
+            }
+        });
 
-            if (e.button === 0) {
-                const worldPos = getWorldCoords(e);
-
-                if (toolSelect.value === 'brush') {
-                    isDrawing = true;
-                    currentLine = {
-                        type: 'line',
-                        color: currentColor,
-                        width: parseInt(sizeSlider.value),
-                        points: [{x: worldPos.x, y: worldPos.y}]
-                    };
-                    elements.push(currentLine);
+        function addImageToCanvas(imgUrl) {
+            fabric.Image.fromURL(imgUrl, (img) => {
+                if (img.width > window.innerWidth / 2) {
+                    img.scaleToWidth(window.innerWidth / 2);
                 }
-                else if (toolSelect.value === 'text') {
-                    const text = prompt("Введите текст:");
-                    if (text) {
-                        const newText = {
-                            type: 'text',
-                            text: text,
-                            x: worldPos.x,
-                            y: worldPos.y,
-                            color: currentColor,
-                            size: parseInt(sizeSlider.value) * 5
-                        };
-                        elements.push(newText);
-                        socket.emit('draw_element', newText);
-                        redraw();
-                    }
-                }
-            }
-        });
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (isPanning) {
-                offsetX = e.clientX - startPanX;
-                offsetY = e.clientY - startPanY;
-                redraw();
-            }
-            else if (isDrawing && currentLine) {
-                const worldPos = getWorldCoords(e);
-                currentLine.points.push({x: worldPos.x, y: worldPos.y});
-                redraw();
-            }
-        });
+                const vpt = canvas.viewportTransform;
+                const zoom = canvas.getZoom();
+                const centerX = (-vpt[4] + window.innerWidth / 2) / zoom;
+                const centerY = (-vpt[5] + window.innerHeight / 2) / zoom;
 
-        canvas.addEventListener('mouseup', (e) => {
-            if (e.button === 2) { isPanning = false; canvas.style.cursor = 'crosshair'; }
-            if (e.button === 0 && isDrawing) {
-                isDrawing = false;
-                socket.emit('draw_element', currentLine);
-                currentLine = null;
-            }
-        });
+                img.set({
+                    left: centerX - (img.getScaledWidth() / 2),
+                    top: centerY - (img.getScaledHeight() / 2),
+                    cornerColor: '#007bff',
+                    cornerStrokeColor: '#007bff',
+                    borderColor: '#007bff',
+                    transparentCorners: false
+                });
 
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomDirection = e.deltaY < 0 ? 1.1 : 0.9;
-            const mouseX = e.clientX; const mouseY = e.clientY;
-            offsetX = mouseX - (mouseX - offsetX) * zoomDirection;
-            offsetY = mouseY - (mouseY - offsetY) * zoomDirection;
-            scale *= zoomDirection;
-            scale = Math.min(Math.max(0.1, scale), 10);
-            redraw();
-        }, { passive: false });
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                setMode(modes.SELECT);
+            });
+        }
 
-        imageUpload.addEventListener('change', (e) => {
+        document.getElementById('imageUpload').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const center = getWorldCoords({clientX: canvas.width / 2, clientY: canvas.height / 2});
-                    const newImage = {
-                        type: 'image', id: Date.now().toString(), src: event.target.result,
-                        x: center.x - (img.width / 2), y: center.y - (img.height / 2),
-                        width: img.width, height: img.height
-                    };
-                    elements.push(newImage);
-                    socket.emit('draw_element', newImage);
-                    redraw();
-                }
-                img.src = event.target.result;
-            };
+            reader.onload = (event) => addImageToCanvas(event.target.result);
             reader.readAsDataURL(file);
-            e.target.value = '';
         });
 
-        socket.on('init_board', (serverElements) => { elements = serverElements; redraw(); });
-        socket.on('draw_element', (data) => { elements.push(data); redraw(); });
-        clearBtn.addEventListener('click', () => { socket.emit('clear_canvas'); });
-        socket.on('clear_canvas', () => { elements = []; redraw(); });
-        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; redraw(); });
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+            if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                const activeObjects = canvas.getActiveObjects();
+                if (activeObjects.length) {
+                    if (activeObjects[0].isEditing) return;
+                    canvas.discardActiveObject();
+                    activeObjects.forEach((obj) => canvas.remove(obj));
+                }
+            }
+        });
 
-        redraw();
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || window.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => addImageToCanvas(event.target.result);
+                    reader.readAsDataURL(blob);
+                }
+            }
+        });
+
+        /* --- ВЫБОР ЦВЕТА --- */
+        const colorPicker = document.getElementById('colorPicker');
+        let customColorSelected = false;
+
+        colorPicker.addEventListener('input', (e) => {
+            customColorSelected = true;
+            const color = e.target.value;
+            canvas.freeDrawingBrush.color = color;
+
+            const activeObjects = canvas.getActiveObjects();
+            if (activeObjects.length) {
+                activeObjects.forEach(obj => {
+                    if (obj.type === 'i-text' || obj.type === 'path') {
+                         obj.set(obj.type === 'path' ? 'stroke' : 'fill', color);
+                    }
+                });
+                canvas.renderAll();
+                saveHistory();
+            }
+        });
+
+        function updateBrushColor() {
+            if (customColorSelected) {
+                canvas.freeDrawingBrush.color = colorPicker.value;
+                return;
+            }
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const defaultColor = isDark ? '#ffffff' : '#000000';
+            canvas.freeDrawingBrush.color = defaultColor;
+            colorPicker.value = defaultColor;
+        }
+        updateBrushColor();
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.body.removeAttribute('data-theme');
+            } else {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+            updateBrushColor();
+        });
+
+        function updateGrid() {
+            const container = document.getElementById('board-container');
+            const zoom = canvas.getZoom();
+            const vpt = canvas.viewportTransform;
+            container.style.setProperty('--grid-size', `${20 * zoom}px`);
+            container.style.setProperty('--grid-offset-x', `${vpt[4]}px`);
+            container.style.setProperty('--grid-offset-y', `${vpt[5]}px`);
+        }
+
+        canvas.on('mouse:wheel', function(opt) {
+            var delta = opt.e.deltaY;
+            var zoom = canvas.getZoom();
+            zoom *= 0.999 ** delta;
+            if (zoom > 20) zoom = 20;
+            if (zoom < 0.1) zoom = 0.1;
+
+            canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
+            updateGrid();
+        });
+
+        canvas.on('mouse:down', function(opt) {
+            var evt = opt.e;
+            if (evt.altKey === true) {
+                this.isDragging = true;
+                this.selection = false;
+                this.lastPosX = evt.clientX;
+                this.lastPosY = evt.clientY;
+            }
+        });
+
+        canvas.on('mouse:move', function(opt) {
+            if (this.isDragging) {
+                var e = opt.e;
+                var vpt = this.viewportTransform;
+                vpt[4] += e.clientX - this.lastPosX;
+                vpt[5] += e.clientY - this.lastPosY;
+                this.requestRenderAll();
+                this.lastPosX = e.clientX;
+                this.lastPosY = e.clientY;
+                updateGrid();
+            }
+        });
+
+        canvas.on('mouse:up', function(opt) {
+            if (this.isDragging) {
+                this.setViewportTransform(this.viewportTransform);
+                this.isDragging = false;
+                if(currentMode === modes.SELECT) {
+                    this.selection = true;
+                }
+            }
+        });
+
+        document.getElementById('gridToggle').addEventListener('click', () => {
+            document.getElementById('board-container').classList.toggle('show-grid');
+        });
+
     </script>
 </body>
 </html>
