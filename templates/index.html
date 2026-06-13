@@ -39,7 +39,7 @@
 
         .toolbar {
             position: absolute;
-            top: 15px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
             background-color: var(--panel-bg);
@@ -50,13 +50,17 @@
             gap: 8px;
             z-index: 10;
             align-items: center;
+            max-width: 96vw;
+            flex-wrap: wrap;
+            justify-content: center;
+            box-sizing: border-box;
         }
 
         .divider {
             width: 1px;
             height: 24px;
             background-color: var(--grid-color);
-            margin: 0 5px;
+            margin: 0 2px;
         }
 
         button, label.custom-file-upload {
@@ -122,6 +126,24 @@
             background-image:
                 linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
                 linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+        }
+
+        @media (max-width: 600px) {
+            .toolbar {
+                padding: 6px;
+                gap: 4px;
+            }
+            button, label.custom-file-upload {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+            .divider {
+                display: none;
+            }
+            input[type="color"] {
+                height: 28px;
+                width: 28px;
+            }
         }
     </style>
 </head>
