@@ -88,7 +88,6 @@
             display: none;
         }
 
-        /* Стилизация выбора цвета */
         input[type="color"] {
             cursor: pointer;
             height: 34px;
@@ -98,13 +97,16 @@
             border-radius: 6px;
             background: none;
         }
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
         input[type="color"]::-webkit-color-swatch {
             border: 2px solid var(--grid-color);
             border-radius: 6px;
         }
 
-        /* Динамическая сетка */
         #board-container {
             width: 100vw;
             height: 100vh;
@@ -113,6 +115,7 @@
             --grid-offset-y: 0px;
             background-size: var(--grid-size) var(--grid-size);
             background-position: var(--grid-offset-x) var(--grid-offset-y);
+            touch-action: none;
         }
 
         #board-container.show-grid {
@@ -215,7 +218,6 @@
         document.getElementById('btnUndo').addEventListener('click', undo);
         document.getElementById('btnRedo').addEventListener('click', redo);
 
-
         const modes = { DRAW: 'draw', SELECT: 'select', ERASE: 'erase', TEXT: 'text' };
         let currentMode = modes.DRAW;
 
@@ -259,8 +261,7 @@
             if (currentMode === modes.ERASE && e.target) {
                 canvas.remove(e.target);
                 canvas.discardActiveObject();
-            }
-            else if (currentMode === modes.TEXT) {
+            } else if (currentMode === modes.TEXT) {
                 const pointer = canvas.getPointer(e.e);
                 const text = new fabric.IText('Текст', {
                     left: pointer.x,
@@ -340,7 +341,6 @@
             }
         });
 
-        /* --- ВЫБОР ЦВЕТА --- */
         const colorPicker = document.getElementById('colorPicker');
         let customColorSelected = false;
 
@@ -442,6 +442,67 @@
             document.getElementById('board-container').classList.toggle('show-grid');
         });
 
+        const upperCanvas = canvas.upperCanvasEl;
+        let pinchStartDistance = null;
+        let pinchStartMidpoint = null;
+        let lastZoom = 1;
+
+        upperCanvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                canvas.isDrawingMode = false;
+
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+
+                pinchStartDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+                pinchStartMidpoint = {
+                    x: (t1.clientX + t2.clientX) / 2,
+                    y: (t1.clientY + t2.clientY) / 2
+                };
+
+                lastZoom = canvas.getZoom();
+            }
+        }, { passive: false });
+
+        upperCanvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+
+                const currentDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+                const currentMidpoint = {
+                    x: (t1.clientX + t2.clientX) / 2,
+                    y: (t1.clientY + t2.clientY) / 2
+                };
+
+                let newZoom = lastZoom * (currentDistance / pinchStartDistance);
+                if (newZoom > 20) newZoom = 20;
+                if (newZoom < 0.1) newZoom = 0.1;
+                canvas.zoomToPoint({ x: currentMidpoint.x, y: currentMidpoint.y }, newZoom);
+
+                const vpt = canvas.viewportTransform;
+                vpt[4] += currentMidpoint.x - pinchStartMidpoint.x;
+                vpt[5] += currentMidpoint.y - pinchStartMidpoint.y;
+
+                canvas.requestRenderAll();
+                updateGrid();
+
+                pinchStartMidpoint = currentMidpoint;
+            }
+        }, { passive: false });
+
+        upperCanvas.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                if (currentMode === modes.DRAW) {
+                    canvas.isDrawingMode = true;
+                }
+                canvas.setViewportTransform(canvas.viewportTransform);
+            }
+        });
     </script>
 </body>
 </html>
