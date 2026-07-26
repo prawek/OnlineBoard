@@ -1,2 +1,2 @@
 # Online Board
-https://onlineboard.onrender.com/
+Виртуальная интерактивная онлайн-доска для совместной работы
