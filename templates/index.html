@@ -1,530 +1,146 @@
-<!DOCTYPE html>
-<html lang="ru">
+<!doctype html>
+<html lang="ru" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Интерактивная доска</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <style>
-        :root {
-            --bg-color: #ffffff;
-            --grid-color: rgba(0, 0, 0, 0.15);
-            --text-color: #333333;
-            --panel-bg: #f8f9fa;
-            --btn-bg: #e9ecef;
-            --btn-text: #333;
-            --btn-active: #0d6efd;
-            --btn-active-text: #fff;
-        }
-
-        [data-theme="dark"] {
-            --bg-color: #1e1e1e;
-            --grid-color: rgba(255, 255, 255, 0.15);
-            --text-color: #ffffff;
-            --panel-bg: #2d2d2d;
-            --btn-bg: #3d3d3d;
-            --btn-text: #fff;
-            --btn-active: #3d8bfd;
-            --btn-active-text: #fff;
-        }
-
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: background-color 0.3s ease;
-            font-family: sans-serif;
-        }
-
-        .toolbar {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--panel-bg);
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            display: flex;
-            gap: 8px;
-            z-index: 10;
-            align-items: center;
-            max-width: 96vw;
-            flex-wrap: wrap;
-            justify-content: center;
-            box-sizing: border-box;
-        }
-
-        .divider {
-            width: 1px;
-            height: 24px;
-            background-color: var(--grid-color);
-            margin: 0 2px;
-        }
-
-        button, label.custom-file-upload {
-            cursor: pointer;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 6px;
-            background-color: var(--btn-bg);
-            color: var(--btn-text);
-            font-weight: bold;
-            font-size: 14px;
-            transition: all 0.2s;
-            display: inline-block;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        button:hover, label.custom-file-upload:hover {
-            filter: brightness(0.9);
-        }
-
-        button.active {
-            background-color: var(--btn-active);
-            color: var(--btn-active-text);
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        input[type="color"] {
-            cursor: pointer;
-            height: 34px;
-            width: 34px;
-            padding: 0;
-            border: none;
-            border-radius: 6px;
-            background: none;
-        }
-
-        input[type="color"]::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
-
-        input[type="color"]::-webkit-color-swatch {
-            border: 2px solid var(--grid-color);
-            border-radius: 6px;
-        }
-
-        #board-container {
-            width: 100vw;
-            height: 100vh;
-            --grid-size: 20px;
-            --grid-offset-x: 0px;
-            --grid-offset-y: 0px;
-            background-size: var(--grid-size) var(--grid-size);
-            background-position: var(--grid-offset-x) var(--grid-offset-y);
-            touch-action: none;
-        }
-
-        #board-container.show-grid {
-            background-image:
-                linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
-                linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-        }
-
-        @media (max-width: 600px) {
-            .toolbar {
-                padding: 6px;
-                gap: 4px;
-            }
-            button, label.custom-file-upload {
-                padding: 6px 8px;
-                font-size: 12px;
-            }
-            .divider {
-                display: none;
-            }
-            input[type="color"] {
-                height: 28px;
-                width: 28px;
-            }
-        }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f6f5f2">
+    <meta name="description" content="Пространство для идей: рисуйте, собирайте заметки и работайте вместе.">
+    <title>Моя доска · Online Board</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/board.css') }}">
+    <script defer src="{{ url_for('static', filename='vendor/fabric.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </head>
 <body>
+    <main class="workspace" aria-label="Онлайн-доска">
+        <div id="board-container" class="board-container show-grid" data-grid-style="dots" aria-label="Холст доски">
+            <canvas id="board"></canvas>
+        </div>
 
-    <div class="toolbar">
-        <button id="modeSelect" title="Выделение и перемещение">👆</button>
-        <button id="modeDraw" class="active" title="Рисовать">🖊️</button>
-        <button id="modeText" title="Текст">📝</button>
-        <button id="modeErase" title="Ластик">🗑️</button>
+        <header class="topbar panel">
+            <a class="brand" href="/" aria-label="Online Board"><span class="brand-mark"><i></i><i></i><i></i><i></i></span></a>
+            <span class="header-divider"></span>
+            <div class="document-info">
+                <input id="board-title" class="board-title" value="Моя доска" maxlength="100" aria-label="Название доски" autocomplete="off">
+                <span id="save-status" class="save-status" role="status"><span class="status-dot"></span><span>Загрузка доски…</span></span>
+            </div>
+            <div class="header-actions">
+                <span class="workspace-label"><span data-icon="layers"></span>Пространство для идей</span>
+                <button class="icon-button" id="theme-toggle" title="Сменить тему" aria-label="Сменить тему"><span data-icon="moon"></span></button>
+                <button class="icon-button" id="help-button" title="Горячие клавиши (?)" aria-label="Горячие клавиши"><span data-icon="help"></span></button>
+                <span class="header-divider desktop-only"></span>
+                <div class="dropdown-anchor">
+                    <button class="button button-primary" id="export-toggle" aria-expanded="false" aria-controls="export-menu"><span data-icon="download"></span><span class="export-label">Экспорт</span><span class="small-icon" data-icon="chevron-down"></span></button>
+                    <div id="export-menu" class="dropdown panel" hidden>
+                        <span class="menu-caption">СОХРАНИТЬ КОПИЮ</span>
+                        <button data-action="export-png"><span data-icon="image"></span>Изображение PNG</button>
+                        <button data-action="export-json"><span data-icon="file"></span>Файл доски JSON</button>
+                        <div class="menu-divider"></div>
+                        <button data-action="import"><span data-icon="upload"></span>Открыть файл доски</button>
+                    </div>
+                </div>
+                <div class="dropdown-anchor">
+                    <button id="more-toggle" class="icon-button" aria-label="Действия с доской" title="Действия с доской" aria-expanded="false" aria-controls="more-menu"><span data-icon="more"></span></button>
+                    <div id="more-menu" class="dropdown panel" hidden>
+                        <button id="grid-toggle" aria-pressed="true"><span data-icon="grid"></span>Скрыть сетку</button>
+                        <button id="grid-style-toggle" aria-pressed="false"><span data-icon="grid"></span>Сетка: точки</button>
+                        <div class="menu-divider"></div>
+                        <button data-action="clear" class="danger"><span data-icon="trash"></span>Очистить доску</button>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-        <div class="divider"></div>
+        <nav class="toolrail panel" aria-label="Инструменты">
+            <button class="tool-button active" data-tool="select" title="Выделение (V)" aria-label="Выделение" aria-pressed="true"><span data-icon="cursor"></span><kbd>V</kbd></button>
+            <button class="tool-button" data-tool="hand" title="Перемещение (H / пробел / ПКМ)" aria-label="Перемещение" aria-pressed="false"><span data-icon="hand"></span><kbd>H</kbd></button>
+            <span class="rail-divider"></span>
+            <button class="tool-button" data-tool="draw" title="Карандаш (P)" aria-label="Карандаш" aria-pressed="false"><span data-icon="pen"></span><kbd>P</kbd></button>
+            <button class="tool-button" data-tool="text" title="Текст (T)" aria-label="Текст" aria-pressed="false"><span data-icon="text"></span><kbd>T</kbd></button>
+            <button class="tool-button" data-tool="sticky" title="Стикер (N)" aria-label="Стикер" aria-pressed="false"><span data-icon="sticky"></span><kbd>N</kbd></button>
+            <button class="tool-button" data-tool="rect" title="Прямоугольник (R)" aria-label="Прямоугольник" aria-pressed="false"><span data-icon="square"></span><kbd>R</kbd></button>
+            <button class="tool-button" data-tool="ellipse" title="Эллипс (O)" aria-label="Эллипс" aria-pressed="false"><span data-icon="circle"></span><kbd>O</kbd></button>
+            <button class="tool-button" data-tool="line" title="Линия (L)" aria-label="Линия" aria-pressed="false"><span data-icon="line"></span><kbd>L</kbd></button>
+            <button class="tool-button" id="image-button" title="Изображение (I / Ctrl+V)" aria-label="Добавить изображение"><span data-icon="image"></span><kbd>I</kbd></button>
+            <button class="tool-button" data-tool="erase" title="Ластик (E)" aria-label="Ластик" aria-pressed="false"><span data-icon="eraser"></span><kbd>E</kbd></button>
+            <span class="rail-divider"></span>
+            <button class="tool-button" id="undo-button" title="Отменить (Ctrl+Z)" aria-label="Отменить" disabled><span data-icon="undo"></span></button>
+            <button class="tool-button" id="redo-button" title="Повторить (Ctrl+Shift+Z / Ctrl+Y)" aria-label="Повторить" disabled><span data-icon="redo"></span></button>
+        </nav>
 
-        <input type="color" id="colorPicker" value="#000000" title="Выбрать цвет">
+        <aside class="properties panel" aria-label="Свойства инструмента">
+            <h2 id="tool-name">Выделение</h2>
+            <div class="property-section" id="color-property">
+                <label class="property-label" for="color-picker">Цвет <span id="color-label">#292D3E</span></label>
+                <div class="color-palette" id="color-palette">
+                    <button class="swatch active" data-color="#292d3e" style="--swatch:#292d3e" aria-label="Графитовый" aria-pressed="true"></button>
+                    <button class="swatch" data-color="#7762e8" style="--swatch:#7762e8" aria-label="Фиолетовый" aria-pressed="false"></button>
+                    <button class="swatch" data-color="#4b8dee" style="--swatch:#4b8dee" aria-label="Синий" aria-pressed="false"></button>
+                    <button class="swatch" data-color="#37a782" style="--swatch:#37a782" aria-label="Зелёный" aria-pressed="false"></button>
+                    <button class="swatch" data-color="#ed9b40" style="--swatch:#ed9b40" aria-label="Оранжевый" aria-pressed="false"></button>
+                    <button class="swatch" data-color="#e56c89" style="--swatch:#e56c89" aria-label="Розовый" aria-pressed="false"></button>
+                </div>
+                <label class="custom-color"><input type="color" id="color-picker" value="#292d3e" aria-label="Свой цвет"><span>Свой цвет</span><span data-icon="plus" class="small-icon"></span></label>
+            </div>
+            <div class="property-section" id="stroke-property">
+                <label class="property-label" for="stroke-width">Толщина <span id="stroke-value">3 px</span></label>
+                <input type="range" id="stroke-width" min="1" max="24" value="3">
+                <div class="range-endpoints"><span class="line-sample thin"></span><span class="line-sample thick"></span></div>
+            </div>
+            <div class="property-section" id="font-property" hidden>
+                <label class="property-label" for="font-size">Размер текста</label>
+                <select id="font-size"><option>16</option><option>20</option><option selected>28</option><option>36</option><option>48</option><option>64</option><option>96</option></select>
+            </div>
+            <div class="property-section" id="fill-property" hidden>
+                <label class="property-label" for="shape-fill">Заливка</label>
+                <select id="shape-fill"><option value="none">Без заливки</option><option value="soft">Лёгкая</option><option value="solid">Сплошная</option></select>
+            </div>
+            <div class="selection-actions" id="selection-actions" hidden>
+                <button class="button button-subtle" id="duplicate-button" title="Дублировать (Ctrl+D)"><span data-icon="copy"></span>Копия</button>
+                <button class="icon-button danger" id="delete-button" title="Удалить (Delete)" aria-label="Удалить выбранное"><span data-icon="trash"></span></button>
+            </div>
+        </aside>
 
-        <div class="divider"></div>
+        <footer class="board-footer">
+            <div class="zoom-controls panel">
+                <button class="icon-button" id="zoom-out" title="Уменьшить (−)" aria-label="Уменьшить масштаб"><span data-icon="minus"></span></button>
+                <button class="zoom-value" id="zoom-reset" title="Сбросить масштаб (Ctrl+0)">100%</button>
+                <button class="icon-button" id="zoom-in" title="Увеличить (+)" aria-label="Увеличить масштаб"><span data-icon="plus"></span></button>
+                <span class="header-divider"></span>
+                <button class="icon-button" id="fit-button" title="Показать всю доску (Shift+1)" aria-label="Показать всю доску"><span data-icon="scan"></span></button>
+            </div>
+        </footer>
+        <div id="drop-overlay" class="drop-overlay" hidden><span data-icon="upload"></span><strong>Отпустите изображение здесь</strong><span>PNG, JPG, WebP или GIF · до 5 МБ</span></div>
+        <div id="busy-overlay" class="busy-overlay" hidden><span class="spinner"></span><span>Загружаем доску…</span></div>
+        <div id="toast" class="toast" role="status" hidden></div>
+    </main>
 
-        <button id="btnUndo" title="Отменить (Ctrl+Z)">↩️</button>
-        <button id="btnRedo" title="Повторить (Ctrl+Y)">↪️</button>
-
-        <div class="divider"></div>
-
-        <label class="custom-file-upload" title="Или нажмите Ctrl+V">
-            <input type="file" id="imageUpload" accept="image/*">
-            🖼️ Картинка
-        </label>
-
-        <div class="divider"></div>
-
-        <button id="themeToggle">🌓 Тема</button>
-        <button id="gridToggle">▦ Сетка</button>
-    </div>
-
-    <div id="board-container" class="show-grid">
-        <canvas id="board"></canvas>
-    </div>
-
-    <script>
-        const canvas = new fabric.Canvas('board', {
-            isDrawingMode: true,
-            selection: false
-        });
-
-        canvas.freeDrawingBrush.width = 3;
-
-        let history = [];
-        let historyStep = -1;
-        let isRestoringHistory = false;
-
-        function resizeCanvas() {
-            canvas.setWidth(window.innerWidth);
-            canvas.setHeight(window.innerHeight);
-            canvas.renderAll();
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        function saveHistory() {
-            if (isRestoringHistory) return;
-            history = history.slice(0, historyStep + 1);
-            history.push(JSON.stringify(canvas));
-            historyStep++;
-        }
-
-        saveHistory();
-
-        canvas.on('object:added', saveHistory);
-        canvas.on('object:modified', saveHistory);
-        canvas.on('object:removed', saveHistory);
-
-        function undo() {
-            if (historyStep > 0) {
-                historyStep--;
-                restoreHistory();
-            }
-        }
-
-        function redo() {
-            if (historyStep < history.length - 1) {
-                historyStep++;
-                restoreHistory();
-            }
-        }
-
-        function restoreHistory() {
-            isRestoringHistory = true;
-            canvas.loadFromJSON(history[historyStep], () => {
-                canvas.renderAll();
-                isRestoringHistory = false;
-                updateBrushColor();
-            });
-        }
-
-        document.getElementById('btnUndo').addEventListener('click', undo);
-        document.getElementById('btnRedo').addEventListener('click', redo);
-
-        const modes = { DRAW: 'draw', SELECT: 'select', ERASE: 'erase', TEXT: 'text' };
-        let currentMode = modes.DRAW;
-
-        const btnDraw = document.getElementById('modeDraw');
-        const btnSelect = document.getElementById('modeSelect');
-        const btnErase = document.getElementById('modeErase');
-        const btnText = document.getElementById('modeText');
-
-        function setMode(mode) {
-            currentMode = mode;
-            btnDraw.classList.toggle('active', mode === modes.DRAW);
-            btnSelect.classList.toggle('active', mode === modes.SELECT);
-            btnErase.classList.toggle('active', mode === modes.ERASE);
-            btnText.classList.toggle('active', mode === modes.TEXT);
-
-            if (mode === modes.DRAW) {
-                canvas.isDrawingMode = true;
-                canvas.selection = false;
-                canvas.forEachObject(o => o.selectable = false);
-            } else if (mode === modes.SELECT) {
-                canvas.isDrawingMode = false;
-                canvas.selection = true;
-                canvas.forEachObject(o => o.selectable = true);
-            } else if (mode === modes.ERASE) {
-                canvas.isDrawingMode = false;
-                canvas.selection = false;
-                canvas.forEachObject(o => o.selectable = false);
-            } else if (mode === modes.TEXT) {
-                canvas.isDrawingMode = false;
-                canvas.selection = false;
-                canvas.forEachObject(o => o.selectable = false);
-            }
-        }
-
-        btnDraw.addEventListener('click', () => setMode(modes.DRAW));
-        btnSelect.addEventListener('click', () => setMode(modes.SELECT));
-        btnErase.addEventListener('click', () => setMode(modes.ERASE));
-        btnText.addEventListener('click', () => setMode(modes.TEXT));
-
-        canvas.on('mouse:down', (e) => {
-            if (currentMode === modes.ERASE && e.target) {
-                canvas.remove(e.target);
-                canvas.discardActiveObject();
-            } else if (currentMode === modes.TEXT) {
-                const pointer = canvas.getPointer(e.e);
-                const text = new fabric.IText('Текст', {
-                    left: pointer.x,
-                    top: pointer.y,
-                    fontFamily: 'sans-serif',
-                    fill: document.getElementById('colorPicker').value,
-                    fontSize: 24,
-                    transparentCorners: false,
-                    cornerColor: '#007bff',
-                    borderColor: '#007bff',
-                });
-                canvas.add(text);
-                canvas.setActiveObject(text);
-                text.enterEditing();
-                text.selectAll();
-                setMode(modes.SELECT);
-            }
-        });
-
-        function addImageToCanvas(imgUrl) {
-            fabric.Image.fromURL(imgUrl, (img) => {
-                if (img.width > window.innerWidth / 2) {
-                    img.scaleToWidth(window.innerWidth / 2);
-                }
-
-                const vpt = canvas.viewportTransform;
-                const zoom = canvas.getZoom();
-                const centerX = (-vpt[4] + window.innerWidth / 2) / zoom;
-                const centerY = (-vpt[5] + window.innerHeight / 2) / zoom;
-
-                img.set({
-                    left: centerX - (img.getScaledWidth() / 2),
-                    top: centerY - (img.getScaledHeight() / 2),
-                    cornerColor: '#007bff',
-                    cornerStrokeColor: '#007bff',
-                    borderColor: '#007bff',
-                    transparentCorners: false
-                });
-
-                canvas.add(img);
-                canvas.setActiveObject(img);
-                setMode(modes.SELECT);
-            });
-        }
-
-        document.getElementById('imageUpload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => addImageToCanvas(event.target.result);
-            reader.readAsDataURL(file);
-        });
-
-        window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-            if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                const activeObjects = canvas.getActiveObjects();
-                if (activeObjects.length) {
-                    if (activeObjects[0].isEditing) return;
-                    canvas.discardActiveObject();
-                    activeObjects.forEach((obj) => canvas.remove(obj));
-                }
-            }
-        });
-
-        window.addEventListener('paste', (e) => {
-            const items = (e.clipboardData || window.clipboardData).items;
-            for (let item of items) {
-                if (item.type.indexOf('image') !== -1) {
-                    const blob = item.getAsFile();
-                    const reader = new FileReader();
-                    reader.onload = (event) => addImageToCanvas(event.target.result);
-                    reader.readAsDataURL(blob);
-                }
-            }
-        });
-
-        const colorPicker = document.getElementById('colorPicker');
-        let customColorSelected = false;
-
-        colorPicker.addEventListener('input', (e) => {
-            customColorSelected = true;
-            const color = e.target.value;
-            canvas.freeDrawingBrush.color = color;
-
-            const activeObjects = canvas.getActiveObjects();
-            if (activeObjects.length) {
-                activeObjects.forEach(obj => {
-                    if (obj.type === 'i-text' || obj.type === 'path') {
-                         obj.set(obj.type === 'path' ? 'stroke' : 'fill', color);
-                    }
-                });
-                canvas.renderAll();
-                saveHistory();
-            }
-        });
-
-        function updateBrushColor() {
-            if (customColorSelected) {
-                canvas.freeDrawingBrush.color = colorPicker.value;
-                return;
-            }
-            const isDark = document.body.getAttribute('data-theme') === 'dark';
-            const defaultColor = isDark ? '#ffffff' : '#000000';
-            canvas.freeDrawingBrush.color = defaultColor;
-            colorPicker.value = defaultColor;
-        }
-        updateBrushColor();
-
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            const isDark = document.body.getAttribute('data-theme') === 'dark';
-            if (isDark) {
-                document.body.removeAttribute('data-theme');
-            } else {
-                document.body.setAttribute('data-theme', 'dark');
-            }
-            updateBrushColor();
-        });
-
-        function updateGrid() {
-            const container = document.getElementById('board-container');
-            const zoom = canvas.getZoom();
-            const vpt = canvas.viewportTransform;
-            container.style.setProperty('--grid-size', `${20 * zoom}px`);
-            container.style.setProperty('--grid-offset-x', `${vpt[4]}px`);
-            container.style.setProperty('--grid-offset-y', `${vpt[5]}px`);
-        }
-
-        canvas.on('mouse:wheel', function(opt) {
-            var delta = opt.e.deltaY;
-            var zoom = canvas.getZoom();
-            zoom *= 0.999 ** delta;
-            if (zoom > 20) zoom = 20;
-            if (zoom < 0.1) zoom = 0.1;
-
-            canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-            opt.e.preventDefault();
-            opt.e.stopPropagation();
-            updateGrid();
-        });
-
-        canvas.on('mouse:down', function(opt) {
-            var evt = opt.e;
-            if (evt.altKey === true) {
-                this.isDragging = true;
-                this.selection = false;
-                this.lastPosX = evt.clientX;
-                this.lastPosY = evt.clientY;
-            }
-        });
-
-        canvas.on('mouse:move', function(opt) {
-            if (this.isDragging) {
-                var e = opt.e;
-                var vpt = this.viewportTransform;
-                vpt[4] += e.clientX - this.lastPosX;
-                vpt[5] += e.clientY - this.lastPosY;
-                this.requestRenderAll();
-                this.lastPosX = e.clientX;
-                this.lastPosY = e.clientY;
-                updateGrid();
-            }
-        });
-
-        canvas.on('mouse:up', function(opt) {
-            if (this.isDragging) {
-                this.setViewportTransform(this.viewportTransform);
-                this.isDragging = false;
-                if(currentMode === modes.SELECT) {
-                    this.selection = true;
-                }
-            }
-        });
-
-        document.getElementById('gridToggle').addEventListener('click', () => {
-            document.getElementById('board-container').classList.toggle('show-grid');
-        });
-
-        const upperCanvas = canvas.upperCanvasEl;
-        let pinchStartDistance = null;
-        let pinchStartMidpoint = null;
-        let lastZoom = 1;
-
-        upperCanvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                canvas.isDrawingMode = false;
-
-                const t1 = e.touches[0];
-                const t2 = e.touches[1];
-
-                pinchStartDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-
-                pinchStartMidpoint = {
-                    x: (t1.clientX + t2.clientX) / 2,
-                    y: (t1.clientY + t2.clientY) / 2
-                };
-
-                lastZoom = canvas.getZoom();
-            }
-        }, { passive: false });
-
-        upperCanvas.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-
-                const t1 = e.touches[0];
-                const t2 = e.touches[1];
-
-                const currentDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-                const currentMidpoint = {
-                    x: (t1.clientX + t2.clientX) / 2,
-                    y: (t1.clientY + t2.clientY) / 2
-                };
-
-                let newZoom = lastZoom * (currentDistance / pinchStartDistance);
-                if (newZoom > 20) newZoom = 20;
-                if (newZoom < 0.1) newZoom = 0.1;
-                canvas.zoomToPoint({ x: currentMidpoint.x, y: currentMidpoint.y }, newZoom);
-
-                const vpt = canvas.viewportTransform;
-                vpt[4] += currentMidpoint.x - pinchStartMidpoint.x;
-                vpt[5] += currentMidpoint.y - pinchStartMidpoint.y;
-
-                canvas.requestRenderAll();
-                updateGrid();
-
-                pinchStartMidpoint = currentMidpoint;
-            }
-        }, { passive: false });
-
-        upperCanvas.addEventListener('touchend', (e) => {
-            if (e.touches.length < 2) {
-                if (currentMode === modes.DRAW) {
-                    canvas.isDrawingMode = true;
-                }
-                canvas.setViewportTransform(canvas.viewportTransform);
-            }
-        });
-    </script>
+    <input type="file" id="image-upload" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    <input type="file" id="board-upload" accept=".json,application/json" hidden>
+    <dialog id="help-dialog" class="modal">
+        <div class="modal-header"><div><span class="eyebrow">ВСЁ ПОД РУКОЙ</span><h2>Горячие клавиши</h2></div><button class="icon-button" data-close-dialog aria-label="Закрыть"><span data-icon="close"></span></button></div>
+        <dl class="shortcuts">
+            <div><dt>Отменить действие</dt><dd><kbd>Ctrl</kbd> <kbd>Z</kbd></dd></div>
+            <div><dt>Повторить действие</dt><dd><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd></dd></div>
+            <div><dt>Переместить доску</dt><dd><kbd>ПКМ</kbd> или <kbd>Пробел</kbd> + мышь</dd></div>
+            <div><dt>Масштаб</dt><dd>Колесо мыши / жест двумя пальцами</dd></div>
+            <div><dt>Дублировать</dt><dd><kbd>Ctrl</kbd> <kbd>D</kbd></dd></div>
+            <div><dt>Копировать / вырезать</dt><dd><kbd>Ctrl</kbd> <kbd>C</kbd> / <kbd>X</kbd></dd></div>
+            <div><dt>Вставить изображение / текст</dt><dd><kbd>Ctrl</kbd> <kbd>V</kbd></dd></div>
+            <div><dt>Удалить выбранное</dt><dd><kbd>Delete</kbd></dd></div>
+            <div><dt>Показать все объекты</dt><dd><kbd>Shift</kbd> <kbd>1</kbd></dd></div>
+            <div><dt>Выделить всё</dt><dd><kbd>Ctrl</kbd> <kbd>A</kbd></dd></div>
+            <div><dt>Сдвинуть объект на 1 / 10 px</dt><dd>Стрелки / <kbd>Shift</kbd> + стрелки</dd></div>
+            <div><dt>Снять выделение / выбор инструмента</dt><dd><kbd>Esc</kbd></dd></div>
+        </dl>
+        <p class="modal-note">На macOS используйте ⌘ вместо Ctrl. Буквенные сочетания работают и в русской раскладке.</p>
+    </dialog>
+    <dialog id="confirm-dialog" class="modal confirm-modal">
+        <div class="confirm-icon"><span data-icon="layers"></span></div>
+        <h2 id="confirm-title"></h2><p id="confirm-description"></p>
+        <div class="modal-actions"><button class="button button-subtle" id="confirm-cancel">Отмена</button><button class="button button-primary" id="confirm-accept">Продолжить</button></div>
+    </dialog>
+    <noscript><div class="noscript">Для работы доски включите JavaScript в браузере.</div></noscript>
 </body>
 </html>

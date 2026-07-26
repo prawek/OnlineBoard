@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.14 (OnlineBoard)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.14 (OnlineBoard)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="~\PycharmProjects\OnlineBoard\.venv" project-jdk-type="Python SDK" />
 </project>
