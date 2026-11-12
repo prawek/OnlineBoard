@@ -6,11 +6,10 @@
     <meta name="theme-color" content="#f6f5f2">
     <meta name="description" content="Пространство для идей: рисуйте, собирайте заметки и работайте вместе.">
     <title>Моя доска · Online Board</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/board.css') }}">
-    <script defer src="{{ url_for('static', filename='vendor/fabric.min.js') }}"></script>
-    <script defer src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/css/board.css">
+    <script defer src="/static/vendor/fabric.min.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
     <main class="workspace" aria-label="Онлайн-доска">
@@ -111,7 +110,7 @@
                 <button class="icon-button" id="fit-button" title="Показать всю доску (Shift+1)" aria-label="Показать всю доску"><span data-icon="scan"></span></button>
             </div>
         </footer>
-        <div id="drop-overlay" class="drop-overlay" hidden><span data-icon="upload"></span><strong>Отпустите изображение здесь</strong><span>PNG, JPG, WebP или GIF · до 5 МБ</span></div>
+        <div id="drop-overlay" class="drop-overlay" hidden><span data-icon="upload"></span><strong>Отпустите изображение здесь</strong><span>PNG, JPG, WebP или GIF · до 2 МБ</span></div>
         <div id="busy-overlay" class="busy-overlay" hidden><span class="spinner"></span><span>Загружаем доску…</span></div>
         <div id="toast" class="toast" role="status" hidden></div>
     </main>

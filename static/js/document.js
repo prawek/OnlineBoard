@@ -104,6 +104,9 @@ function validateShape(value) {
 }
 
 export function validateImport(data) {
+    if (new TextEncoder().encode(JSON.stringify(data)).length > 4 * 1024 * 1024) {
+        throw new Error('Доска превышает ограничение в 4 МБ.');
+    }
     if (!data || data.schemaVersion !== 1 || !Array.isArray(data.objects) || data.objects.length > 3000) {
         throw new Error('Выберите JSON-файл доски, сохранённый через «Экспорт».');
     }
@@ -124,6 +127,8 @@ export function validateImport(data) {
                 }
                 walk(item, depth + 1);
             }
+        } else if (value !== null && !['number', 'string', 'boolean'].includes(typeof value)) {
+            throw new Error('Некорректное значение объекта.');
         } else if (typeof value === 'number' && (!Number.isFinite(value) || Math.abs(value) > 10000000)) {
             throw new Error('Некорректные координаты в файле.');
         }

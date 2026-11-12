@@ -217,7 +217,7 @@ function bindUI() {
         const file = event.target.files[0];
         try {
             if (!file) return;
-            if (file.size > 20 * 1024 * 1024) throw new Error('Размер файла доски должен быть меньше 20 МБ.');
+            if (file.size > 4 * 1024 * 1024) throw new Error('Размер файла доски должен быть меньше 4 МБ.');
             let parsed;
             try { parsed = JSON.parse(await file.text()); }
             catch { throw new Error('Не удалось прочитать JSON. Проверьте файл доски.'); }

@@ -37,9 +37,9 @@ class BrowserTest(unittest.TestCase):
     def setUpClass(cls):
         (ROOT / 'test-results').mkdir(exist_ok=True)
         cls.directory = tempfile.TemporaryDirectory(dir=ROOT / 'test-results')
-        env = {**os.environ, 'BOARD_DATABASE': str(Path(cls.directory.name) / 'board.sqlite3'), 'PORT': '5067'}
+        env = {**os.environ, 'BOARD_TEST_DB': '1', 'PORT': '5067'}
         cls.log = open(Path(cls.directory.name) / 'server.log', 'w', encoding='utf-8')
-        cls.server = subprocess.Popen([sys.executable, 'app.py'], cwd=ROOT, env=env, stdout=cls.log, stderr=cls.log,
+        cls.server = subprocess.Popen(['node', '--import', './tests/test-database.mjs', 'scripts/dev.mjs'], cwd=ROOT, env=env, stdout=cls.log, stderr=cls.log,
                                       creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         for _ in range(100):
             try:
