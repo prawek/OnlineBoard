@@ -7,3 +7,8 @@ __pycache__/
 instance/
 test-results/
 .pytest_cache/
+node_modules/
+dist/
+.netlify/
+.env.*
+!.env.example

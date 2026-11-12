@@ -27,25 +27,21 @@ export class BoardSync {
         }
         await this.refresh();
         this.started = true;
-        if (globalThis.io) {
-            this.socket = io({ transports: ['polling', 'websocket'] });
-            this.socket.on('connect', () => { this.refresh(); this.flush(); });
-            this.socket.on('board:changed', ({ revision, clientId }) => {
-                if (clientId !== this.clientId && revision > this.revision) this.refresh();
-            });
-        }
         window.addEventListener('online', () => { this.refresh(); this.flush(); });
         window.addEventListener('offline', () => this.onStatus('offline'));
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) { this.refresh(); this.flush(); }
         });
-        // Polling also recovers missed notifications after a server restart.
-        this.poll = setInterval(() => { this.refresh(); this.flush(); }, 8000);
+        // Netlify Functions handle individual HTTP requests; pause polling in hidden tabs.
+        this.poll = setInterval(() => {
+            if (!document.hidden) { this.refresh(); this.flush(); }
+        }, 5000);
         this.flush();
     }
 
     async request(options = {}) {
-        const response = await fetch('/api/board', { ...options, signal: AbortSignal.timeout(15000) });
+        const response = await fetch('/api/board', { ...options, signal: AbortSignal.timeout(25000) });
+        if (response.status === 304) return null;
         if (!response.ok) {
             const body = await response.json().catch(() => ({}));
             const error = new Error(body.error || `Ошибка сервера (${response.status}).`);
@@ -67,8 +63,9 @@ export class BoardSync {
         if (this.refreshing) return;
         this.refreshing = true;
         try {
-            const remote = await this.request();
-            await this.accept(remote);
+            const remote = await this.request({ headers: this.revision >= 0
+                ? { 'If-None-Match': `"board-${this.revision}"` } : {} });
+            if (remote) await this.accept(remote);
             this.onStatus(this.blocked ? 'error' : this.outbox.length ? 'busy' : 'saved');
         } catch { this.onStatus('offline'); }
         finally { this.refreshing = false; }

@@ -423,7 +423,7 @@ export class BoardEditor {
         if (!file || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
             throw new Error('Выберите изображение PNG, JPG, WebP или GIF.');
         }
-        if (file.size > 5 * 1024 * 1024) throw new Error('Размер изображения должен быть меньше 5 МБ.');
+        if (file.size > 2 * 1024 * 1024) throw new Error('Размер изображения должен быть меньше 2 МБ.');
         const source = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result);
